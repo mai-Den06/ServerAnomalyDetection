@@ -1,0 +1,4 @@
+mcrcon
+requests
+pandas
+python-dotenv
