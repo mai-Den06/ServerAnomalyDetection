@@ -2,3 +2,4 @@ mcrcon
 requests
 pandas
 python-dotenv
+pyyaml
