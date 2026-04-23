@@ -1,4 +1,5 @@
 import os
+import re
 import argparse
 from dotenv import load_dotenv
 import yaml
@@ -21,11 +22,16 @@ def main():
         online_players = 0
     else:
         with MCRcon(HOST, PASSWORD, port=PORT) as mcr:
-            tps = mcr.command("/tps")
-            online_players = mcr.command("/list")
-            # [TODO] 正規表現
-    print(tps) # §6TPS from last 1m, 5m, 15m: §a20.0§r, §a20.0§r, §a20.0
-    print(online_players) # There are 0 of a max of 20 players online:
+            response = mcr.command("/tps")
+            cleaned = re.sub(r'§.', '', response)
+            values = re.findall(r'[\d.]+', cleaned)
+            tps = float(values[3])
+
+            response = mcr.command("/list")
+            match = re.search(r'There are (\d+)', response)
+            online_players = int(match.group(1))
+    print(tps)
+    print(online_players)
 
 if __name__ == '__main__':
     main()
