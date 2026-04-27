@@ -6,3 +6,7 @@ collection:
 paths:
   raw_data: data/raw
   processed_data: data/processed
+
+startup:
+  max_retries: 30
+  retry_interval: 10

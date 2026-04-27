@@ -41,7 +41,24 @@ def read(dry_run):
 
     return df
 
+def wait_for_rcon(dry_run):
+    if dry_run:
+        return
+    max_retries = settings["startup"]["max_retries"]
+    interval = settings["startup"]["retry_interval"]
+    for attempt in range(1, max_retries + 1):
+        try:
+            with MCRcon(HOST, PASSWORD, port=PORT) as mcr:
+                mcr.command("/list")
+            print(f"RCON接続成功（試行 {attempt} 回目）")
+            return
+        except Exception as e:
+            print(f"RCON待機中... ({attempt}/{max_retries}): {e}")
+            time.sleep(interval)
+    raise RuntimeError(f"RCON接続失敗: {max_retries}回リトライしても接続できませんでした")
+
 def loop(dry_run):
+    wait_for_rcon(dry_run)
     interval = settings["collection"]["interval_seconds"]
     while (True):
         today = datetime.now().strftime("%Y%m%d")
