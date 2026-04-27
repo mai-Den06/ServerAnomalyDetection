@@ -7,6 +7,7 @@ import argparse
 from dotenv import load_dotenv
 import yaml
 from mcrcon import MCRcon
+from jmxquery import JMXConnection, JMXQuery
 import pandas as pd
 
 load_dotenv()
@@ -28,6 +29,32 @@ def parse_mspt(raw: str) -> dict:
             'max': float(groups[i][2]),
         }
         for i in range(3)
+    }
+
+def read_jmx() -> dict:
+    conn = JMXConnection("service:jmx:rmi:///jndi/rmi://localhost:9999/jmxrmi")
+    queries = [
+        JMXQuery("java.lang:type=Memory", "HeapMemoryUsage"),
+        JMXQuery("java.lang:type=GarbageCollector,name=*", "CollectionCount"),
+        JMXQuery("java.lang:type=GarbageCollector,name=*", "CollectionTime"),
+    ]
+    results = conn.query(queries)
+
+    heap = {}
+    gc_count, gc_time = 0, 0
+    for r in results:
+        if r.attribute == "HeapMemoryUsage" and r.attributeKey in ("used", "max"):
+            heap[r.attributeKey] = r.value
+        elif r.attribute == "CollectionCount":
+            gc_count += r.value
+        elif r.attribute == "CollectionTime":
+            gc_time += r.value
+
+    return {
+        "heap_used_mb": heap.get("used", 0) / 1024**2,
+        "heap_max_mb" : heap.get("max" , 0) / 1024**2,
+        "gc_count_total": gc_count,
+        "gc_time_ms_total": gc_time,
     }
 
 def read(dry_run):
@@ -53,11 +80,14 @@ def read(dry_run):
             match = re.search(r'There are (\d+)', response)
             online_players = int(match.group(1))
 
+    jmx = read_jmx()
+
     now = datetime.now().replace(microsecond=0)
     df = pd.DataFrame([{
         "timestamp": now,
         "tps": tps,
         **flat_mspt,
+        **jmx,
         "online_players": online_players
     }])
 

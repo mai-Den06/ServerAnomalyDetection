@@ -1,4 +1,5 @@
 mcrcon
+jmxquery
 requests
 pandas
 python-dotenv
