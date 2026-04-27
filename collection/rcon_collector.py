@@ -17,6 +17,19 @@ PASSWORD = os.getenv("RCON_PASSWORD")
 with open("config/settings.yaml") as f:
     settings = yaml.safe_load(f)
 
+def parse_mspt(raw: str) -> dict:
+    clean = re.sub(r'§.', '', raw)
+    groups = re.findall(r'([\d.]+)/([\d.]+)/([\d.]+)', clean)
+    labels = ['5s', '10s', '1m']
+    return {
+        labels[i]: {
+            'avg': float(groups[i][0]),
+            'min': float(groups[i][1]),
+            'max': float(groups[i][2]),
+        }
+        for i in range(3)
+    }
+
 def read(dry_run):
     if dry_run:
         tps = 20.0
@@ -28,16 +41,25 @@ def read(dry_run):
             values = re.findall(r'[\d.]+', cleaned)
             tps = float(values[3])
 
+            response = mcr.command("/mspt")
+            mspt = parse_mspt(response)
+            flat_mspt = {
+                f"mspt_{window}_{stat}": val
+                for window, stats in mspt.items()
+                for stat, val in stats.items()
+            }
+
             response = mcr.command("/list")
             match = re.search(r'There are (\d+)', response)
             online_players = int(match.group(1))
 
     now = datetime.now().replace(microsecond=0)
-    df = pd.DataFrame({
-        "timestamp": [now],
-        "tps": [tps],
-        "online_players": [online_players]
-    })
+    df = pd.DataFrame([{
+        "timestamp": now,
+        "tps": tps,
+        **flat_mspt,
+        "online_players": online_players
+    }])
 
     return df
 
@@ -63,7 +85,7 @@ def loop(dry_run):
     while (True):
         today = datetime.now().strftime("%Y%m%d")
         dir_path = Path(settings["paths"]["raw_data"])
-        file_path = dir_path / f"tps_{today}.csv"
+        file_path = dir_path / f"server_metrics_{today}.csv"
         dir_path.mkdir(parents=True, exist_ok=True)
 
         df = read(dry_run)
