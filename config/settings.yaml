@@ -1,7 +1,6 @@
 collection:
   interval_seconds: 5
   timeout_seconds: 10
-  fallback_to_rcon: true
 
 paths:
   raw_data: data/raw

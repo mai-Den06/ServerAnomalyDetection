@@ -70,12 +70,12 @@ def read_jmx() -> dict:
         "thread_count": thread_count,
     }
 
-def read(dry_run):
+def read(dry_run, timeout):
     if dry_run:
         tps = 20.0
         online_players = 0
     else:
-        with MCRcon(HOST, PASSWORD, port=PORT) as mcr:
+        with MCRcon(HOST, PASSWORD, port=PORT, timeout=timeout) as mcr:
             response = mcr.command("/tps")
             cleaned = re.sub(r'§.', '', response)
             values = re.findall(r'[\d.]+', cleaned)
@@ -106,14 +106,14 @@ def read(dry_run):
 
     return df
 
-def wait_for_rcon(dry_run):
+def wait_for_rcon(dry_run, timeout):
     if dry_run:
         return
     max_retries = settings["startup"]["max_retries"]
     interval = settings["startup"]["retry_interval"]
     for attempt in range(1, max_retries + 1):
         try:
-            with MCRcon(HOST, PASSWORD, port=PORT) as mcr:
+            with MCRcon(HOST, PASSWORD, port=PORT, timeout=timeout) as mcr:
                 mcr.command("/list")
             print(f"RCON接続成功（試行 {attempt} 回目）")
             return
@@ -123,7 +123,8 @@ def wait_for_rcon(dry_run):
     raise RuntimeError(f"RCON接続失敗: {max_retries}回リトライしても接続できませんでした")
 
 def loop(dry_run):
-    wait_for_rcon(dry_run)
+    timeout = settings["collection"]["timeout_seconds"]
+    wait_for_rcon(dry_run, timeout)
     interval = settings["collection"]["interval_seconds"]
     while (True):
         today = datetime.now().strftime("%Y%m%d")
@@ -131,7 +132,7 @@ def loop(dry_run):
         file_path = dir_path / f"server_metrics_{today}.csv"
         dir_path.mkdir(parents=True, exist_ok=True)
 
-        df = read(dry_run)
+        df = read(dry_run, timeout)
         df.to_csv(file_path, mode="a", header=not file_path.exists(), index=False)
         time.sleep(interval)
 
