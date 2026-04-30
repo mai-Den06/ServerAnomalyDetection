@@ -73,6 +73,18 @@ def read_jmx() -> dict:
 def read(dry_run, timeout):
     if dry_run:
         tps = 20.0
+        dummy_response = "0.0/0.0/0.0, 0.0/0.0/0.0, 0.0/0.0/0.0"
+        dummy_mspt = parse_mspt(dummy_response)
+        flat_mspt = {
+            f"mspt_{window}_{stat}": val
+            for window, stats in dummy_mspt.items()
+            for stat, val in stats.items()
+        }
+        jmx = {
+            "heap_used_mb": 0.0, "heap_max_mb" : 0.0, "non_heap_used_mb": 0.0,
+            "gc_count_total": 0, "gc_time_ms_total": 0,
+            "cpu_process_pct": 0.0, "thread_count": 0,
+        }
         online_players = 0
     else:
         with MCRcon(HOST, PASSWORD, port=PORT, timeout=timeout) as mcr:
@@ -93,7 +105,7 @@ def read(dry_run, timeout):
             match = re.search(r'There are (\d+)', response)
             online_players = int(match.group(1))
 
-    jmx = read_jmx()
+        jmx = read_jmx()
 
     now = datetime.now().replace(microsecond=0)
     df = pd.DataFrame([{
