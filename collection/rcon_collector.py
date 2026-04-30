@@ -35,26 +35,39 @@ def read_jmx() -> dict:
     conn = JMXConnection("service:jmx:rmi:///jndi/rmi://localhost:9999/jmxrmi")
     queries = [
         JMXQuery("java.lang:type=Memory", "HeapMemoryUsage"),
+        JMXQuery("java.lang:type=Memory", "NonHeapMemoryUsage"),
         JMXQuery("java.lang:type=GarbageCollector,name=*", "CollectionCount"),
         JMXQuery("java.lang:type=GarbageCollector,name=*", "CollectionTime"),
+        JMXQuery("java.lang:type=OperatingSystem", "ProcessCpuLoad"),
+        JMXQuery("java.lang:type=Threading", "ThreadCount"),
     ]
     results = conn.query(queries)
 
-    heap = {}
+    heap, non_heap = {}, {}
     gc_count, gc_time = 0, 0
+    cpu_load, thread_count = 0, 0
     for r in results:
         if r.attribute == "HeapMemoryUsage" and r.attributeKey in ("used", "max"):
             heap[r.attributeKey] = r.value
+        elif r.attribute == "NonHeapMemoryUsage" and r.attributeKey in ("used", "max"):
+            non_heap[r.attributeKey] = r.value
         elif r.attribute == "CollectionCount":
             gc_count += r.value
         elif r.attribute == "CollectionTime":
             gc_time += r.value
+        elif r.attribute == "ProcessCpuLoad":
+            cpu_load += r.value
+        elif r.attribute == "ThreadCount":
+            thread_count += r.value
 
     return {
         "heap_used_mb": heap.get("used", 0) / 1024**2,
         "heap_max_mb" : heap.get("max" , 0) / 1024**2,
+        "non_heap_used_mb": non_heap.get("used", 0) / 1024**2,
         "gc_count_total": gc_count,
         "gc_time_ms_total": gc_time,
+        "cpu_process_pct": cpu_load * 100,
+        "thread_count": thread_count,
     }
 
 def read(dry_run):
