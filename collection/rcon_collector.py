@@ -139,6 +139,7 @@ def loop(dry_run):
     wait_for_rcon(dry_run, timeout)
     interval = settings["collection"]["interval_seconds"]
     while (True):
+        loop_start = time.time()
         today = datetime.now().strftime("%Y%m%d")
         dir_path = Path(settings["paths"]["raw_data"])
         file_path = dir_path / f"server_metrics_{today}.csv"
@@ -146,7 +147,8 @@ def loop(dry_run):
 
         df = read(dry_run, timeout)
         df.to_csv(file_path, mode="a", header=not file_path.exists(), index=False)
-        time.sleep(interval)
+        elapsed = time.time() - loop_start
+        time.sleep(max(0, interval - elapsed))
 
 def main():
     parser = argparse.ArgumentParser()
