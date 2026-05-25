@@ -117,3 +117,13 @@ python -m collection.rcon_collector        # RCON 使用時
 - [Spark — Minecraft performance profiler](https://spark.lucko.me/)
 - [Numenta Anomaly Benchmark (NAB)](https://github.com/numenta/NAB)
 - [statsmodels STL decomposition](https://www.statsmodels.org/stable/generated/statsmodels.tsa.seasonal.STL.html)
+
+## 詰まった箇所
+- データ収集: `collection/rcon_collector.py`
+    - mspt出力のparse
+- 前処理: `preprocessing/cleaner.py`
+    - pandasでのdf操作
+    - データ収集時の時間差(5~6秒)により、リサンプル時に空スロットが生まれてしまった
+
+## 知ったこと
+- CSVからParquetにすることで型を保持しながら読み書きを高速化できる
