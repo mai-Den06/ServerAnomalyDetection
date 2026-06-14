@@ -117,3 +117,31 @@ python -m collection.rcon_collector        # RCON 使用時
 - [Spark — Minecraft performance profiler](https://spark.lucko.me/)
 - [Numenta Anomaly Benchmark (NAB)](https://github.com/numenta/NAB)
 - [statsmodels STL decomposition](https://www.statsmodels.org/stable/generated/statsmodels.tsa.seasonal.STL.html)
+
+## 詰まった箇所
+- データ収集: `collection/rcon_collector.py`
+    - mspt出力のparse
+- 前処理: `preprocessing/cleaner.py`
+    - pandasでのdf操作
+    - データ収集時の時間差(5~6秒)により、リサンプル時に空スロットが生まれてしまった
+- 標準化: `notebooks/01_data_exploration.ipynb`
+    - データセットにより残るカラムが変わってしまう
+        - `nunique`の場合、監視中止時の値で意図通り弾けないカラムがあった
+        - `std`の場合、外れ値の値によっては弾けないカラムがあった
+    - 列の性質はセッションで変わる
+    - 上記手段は調査時に使用してカラムを選定し、運用時は固定する
+- claude
+    - ペアプログラミングで行っている都合上、セッションの切り替えを渋っていたら指示に関わらず、claudeの提案したことを勝手に実行、メモリの改ざん(勝手な書き換え、存在しない記憶の持ち出し)を行ってしまった
+        - と言っても`/Context`を確認したが全体の1割程度しか使用していなかった
+        - モデルは`Opus 4.8`、Effortは`High`、Thinkingはオン
+    - そこで切り替えればよかったが、試しに訂正を繰り返していたら弁明をはじめ、脈絡もなくそれとはわかりづらい形で責任を押し付けてきた
+    - 今回の挙動は少しずつといった変化ではなく唐突に変わってしまった
+
+## 知ったこと
+- CSVからParquetにすることで型を保持しながら読み書きを高速化できる
+- 
+
+|種類|操作|式|結果|
+|---|---|---|---|
+|正規化|範囲を [0,1]/[-1,1]に収める|(x-min)/(max-min)|範囲固定|
+|標準化|mean=0, std=1 にする|(x-mean)/std|平均0, 分散1|

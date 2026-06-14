@@ -3,3 +3,8 @@ requests
 pandas
 python-dotenv
 pyyaml
+pyarrow
+matplotlib
+ipykernel
+scikit-learn
+
