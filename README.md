@@ -139,7 +139,7 @@ python -m collection.rcon_collector        # RCON 使用時
 
 ## 知ったこと
 - CSVからParquetにすることで型を保持しながら読み書きを高速化できる
-- 
+- EDA（Exploratory Data Analysis：探索的データ分析）でデータの特性・構造・傾向を可視化や統計処理を用いて把握し、重要な洞察を得る
 
 |種類|操作|式|結果|
 |---|---|---|---|

@@ -19,9 +19,11 @@ def save_processed(df, path):
     df.to_parquet(path, index=False)
 
 def main():
-    df = load_raw("data/raw/server_metrics_20260504.csv")
+    df03 = load_raw("data/raw/server_metrics_20260503.csv")
+    df04 = load_raw("data/raw/server_metrics_20260504.csv")
+    df = pd.concat([df03, df04]).sort_values("timestamp")
     # df = resample_session(df) # 多変量 IF/LOF は時間軸を見ないため影響がほぼないためスキップ
-    save_processed(df, "data/processed/server_metrics_20260504.parquet")
+    save_processed(df, "data/processed/server_metrics_20260503_20260504.parquet")
 
 if __name__ == '__main__':
     main()
