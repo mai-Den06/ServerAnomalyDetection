@@ -19,11 +19,21 @@ def add_gc_rate(df):
 
     return df
 
-def main():
-    path = "data/processed/server_metrics_20260504.parquet"
-    df = load_processed(path)
+def build_model_input(df):
     df = add_gc_rate(df)
+    df = df.set_index("timestamp")
+    df = df.iloc[:-1]
+    df = df.drop(columns=[
+        "gc_count_total", "gc_time_ms_total",
+        "tps", "heap_max_mb"
+    ])
     df = df.dropna()
+    return df
+
+def main():
+    path = "data/processed/server_metrics_20260503_20260504.parquet"
+    df = load_processed(path)
+    df = build_model_input(df)
     print(df)
 
 if __name__ == '__main__':
