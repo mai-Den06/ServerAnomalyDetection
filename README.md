@@ -118,6 +118,20 @@ python -m collection.rcon_collector        # RCON 使用時
 - [Numenta Anomaly Benchmark (NAB)](https://github.com/numenta/NAB)
 - [statsmodels STL decomposition](https://www.statsmodels.org/stable/generated/statsmodels.tsa.seasonal.STL.html)
 
+## 監視項目
+|項目名|意味|
+|---|---|
+|timestamp|データ取得時刻|
+|tps|RCON `/tps` から取得。1秒あたりの処理ティック数(上限20)|
+|mspt_5s / 10s / 1m の avg・min・max|RCON `/mspt` から取得。直近5秒/10秒/1分間のMSPT(Milliseconds Per Tick)の平均・最小・最大|
+|heap_used_mb / heap_max_mb|JMX(HeapMemoryUsage)。JVMヒープ使用量/最大割当量(MB)|
+|non_heap_used_mb|JMX(NonHeapMemoryUsage)。非ヒープメモリ使用量(MB)|
+|gc_count_total|JMX(GarbageCollector, 全コレクタ合算)。累積GC実行回数|
+|gc_time_ms_total|JMX(GarbageCollector, 全コレクタ合算)。累積GC処理時間(ms)|
+|cpu_process_pct|JMX(ProcessCpuLoad×100)。サーバープロセスのCPU使用率(%、0〜100)|
+|thread_count|JMX(ThreadCount)。JVMのスレッド数|
+|online_players|RCON `/list` から取得したオンラインプレイヤー数|
+
 ## 詰まった箇所
 - データ収集: `collection/rcon_collector.py`
     - mspt出力のparse
