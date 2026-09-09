@@ -25,7 +25,7 @@ def build_model_input(df):
     df = df.iloc[:-1]
     df = df.drop(columns=[
         "gc_count_total", "gc_time_ms_total",
-        "tps", "heap_max_mb"
+        "tps", "heap_max_mb", "online_players"
     ])
     df = df.dropna()
     return df
