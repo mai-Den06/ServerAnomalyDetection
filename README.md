@@ -4,9 +4,18 @@ Minecraftサーバーの TPS（Ticks Per Second）時系列データを用いた
 
 統計的手法から機械学習まで複数のアプローチを実装し、手法間の特性を比較することで、実務での時系列異常検知に活かせる知見を積むことを目的とする。
 
-## 概要
+## 前提
 
-Minecraft サーバーは毎秒 20 回のゲームティックを処理する。この TPS が低下するとサーバーラグが発生し、プレイヤー体験が悪化する。TPS は「正常値 = 20.0」という明確な基準を持つため、異常検知の学習データとして扱いやすい。
+Minecraft サーバーは毎秒20回のゲームティックを処理する。この遅れはラグとして体感に出るため、異常かどうかを数値と体感の両方から確かめられる。負荷をかけて異常を自分で作れるのも大きい。
+
+その上で、このプロジェクトは次の制約から始めている。
+
+- **正解ラベルが無い。** 手持ちのデータは `tps` がほぼ一定で、異常を含まない正常データのみ
+- そのため **Precision / Recall / F1 は測れない。** 当面は「異常スコア → 暫定閾値 → 閾値からの偏離度」を手法間の共通の物差しにする
+- `tps` は将来の代理ラベル候補なので、**特徴量からは除外**している(リーク防止)
+- TPS 単変量ではなく、**MSPT / メモリ / GC / CPU / スレッド数の多変量**で見る
+
+### 想定する異常パターン
 
 | 異常パターン | 原因例 | TPS の挙動 |
 |---|---|---|
@@ -15,108 +24,19 @@ Minecraft サーバーは毎秒 20 回のゲームティックを処理する。
 | 周期型 | 自動ファームの収穫タイミング | 定期的な低下 |
 | クリープ型 | メモリリーク、エンティティ蓄積 | 徐々に低下 |
 
-## 実装する異常検知手法
-
-**統計的手法**
-- Z-score（グローバル / ローリング）
-- 移動平均 ± 3σ（Bollinger Band 的アプローチ）
-- STL 分解 + 残差の MAD ベース外れ値検出
-
-**機械学習**
-- Isolation Forest
-- LOF（Local Outlier Factor）
-
-## プロジェクト構成
-
-```
-ServerAnomalyDetection/
-├── config/
-│   └── settings.yaml               # 接続設定・検知パラメータ
-├── collection/
-│   ├── spark_api_collector.py      # Spark Web API 経由での TPS 収集
-│   └── rcon_collector.py           # RCON 経由（フォールバック）
-├── data/
-│   ├── raw/                        # 生 CSV（tps_YYYYMMDD.csv）
-│   ├── processed/                  # 前処理済み（Parquet）
-│   └── labeled/
-│       └── anomaly_events.csv      # 意図的ラグのイベントログ
-├── preprocessing/
-│   ├── cleaner.py                  # 欠損・アーティファクト処理
-│   └── feature_engineer.py         # ML 向け特徴量生成
-├── detectors/
-│   ├── base_detector.py            # 共通インターフェース
-│   ├── statistical/
-│   │   ├── zscore_detector.py
-│   │   ├── moving_avg_detector.py
-│   │   └── stl_detector.py
-│   └── ml/
-│       ├── isolation_forest.py
-│       └── lof_detector.py
-├── evaluation/
-│   ├── metrics.py                  # 教師なし評価指標
-│   └── comparator.py               # 手法間比較
-└── notebooks/
-    ├── 01_data_exploration.ipynb
-    ├── 02_statistical_methods.ipynb
-    ├── 03_ml_methods.ipynb
-    ├── 04_comparison.ipynb
-    └── 05_simulation_study.ipynb   # 合成データによる手法検証
-```
-
-## セットアップ
-
-### 1. 依存パッケージのインストール
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Minecraft サーバーの準備
-
-PaperMC サーバーを使用する。`server.properties` で RCON を有効化する。
-
-```properties
-enable-rcon=true
-rcon.port=25575
-rcon.password=<ランダムな文字列>
-```
-
-Spark Web API を使用する場合は [Spark プラグイン](https://spark.lucko.me/) を導入する。
-
-### 3. 環境変数の設定
-
-```bash
-cp .env.example .env
-# .env を編集して接続情報を記入
-```
-
-### 4. データ収集の開始
-
-```bash
-python -m collection.spark_api_collector   # Spark Web API 使用時
-python -m collection.rcon_collector        # RCON 使用時
-```
-
-## Ground Truth の確保戦略
-
-教師ラベルがないリアルデータに対して、以下の 3 段階で対処する。
-
-1. **意図的なラグ注入** — TNT 大量爆発・MOB 大量生成などで TPS 低下を再現し、`anomaly_events.csv` に記録して部分的な正解ラベルとして使う
-2. **合成データ検証** — 既知のパターンで異常を埋め込んだ合成時系列で Precision / Recall / F1 を計算（`notebooks/05_simulation_study.ipynb`）
-3. **教師なし評価指標** — 複数手法のアンサンブル合意率や異常点の時系列パターン分析
-
-## 技術的な注意事項
-
-- TPS の物理上限は 20.0 のため分布が歪む。Z-score の閾値は 3.5〜4.0 程度に緩めること
-- プレイヤー 0 人の時間帯は Idle 状態で TPS = 20.0 固定になる。`online_players` を特徴量に含めること
-- STL 分解は最低 2 周期分（日次周期なら 2 日分）のデータが揃ってから実行する
-- RCON 経由で `/spark tps` を実行すると空レスポンスになるケースがある（[spark issue #119](https://github.com/lucko/spark/issues/119)）。PaperMC 組み込みの `/tps` の方が安定
-
-## 参考
-
-- [Spark — Minecraft performance profiler](https://spark.lucko.me/)
-- [Numenta Anomaly Benchmark (NAB)](https://github.com/numenta/NAB)
-- [statsmodels STL decomposition](https://www.statsmodels.org/stable/generated/statsmodels.tsa.seasonal.STL.html)
+## 監視項目
+|項目名|意味|
+|---|---|
+|timestamp|データ取得時刻|
+|tps|RCON `/tps` から取得。1秒あたりの処理ティック数(上限20)|
+|mspt_5s / 10s / 1m の avg・min・max|RCON `/mspt` から取得。直近5秒/10秒/1分間のMSPT(Milliseconds Per Tick)の平均・最小・最大|
+|heap_used_mb / heap_max_mb|JMX(HeapMemoryUsage)。JVMヒープ使用量/最大割当量(MB)|
+|non_heap_used_mb|JMX(NonHeapMemoryUsage)。非ヒープメモリ使用量(MB)|
+|gc_count_total|JMX(GarbageCollector, 全コレクタ合算)。累積GC実行回数|
+|gc_time_ms_total|JMX(GarbageCollector, 全コレクタ合算)。累積GC処理時間(ms)|
+|cpu_process_pct|JMX(ProcessCpuLoad×100)。サーバープロセスのCPU使用率(%、0〜100)|
+|thread_count|JMX(ThreadCount)。JVMのスレッド数|
+|online_players|RCON `/list` から取得したオンラインプレイヤー数|
 
 ## 詰まった箇所
 - データ収集: `collection/rcon_collector.py`
@@ -130,12 +50,26 @@ python -m collection.rcon_collector        # RCON 使用時
         - `std`の場合、外れ値の値によっては弾けないカラムがあった
     - 列の性質はセッションで変わる
     - 上記手段は調査時に使用してカラムを選定し、運用時は固定する
-- claude
+
+### Claude関連
+- claudeによるメモリ改ざん
     - ペアプログラミングで行っている都合上、セッションの切り替えを渋っていたら指示に関わらず、claudeの提案したことを勝手に実行、メモリの改ざん(勝手な書き換え、存在しない記憶の持ち出し)を行ってしまった
         - と言っても`/Context`を確認したが全体の1割程度しか使用していなかった
         - モデルは`Opus 4.8`、Effortは`High`、Thinkingはオン
     - そこで切り替えればよかったが、試しに訂正を繰り返していたら弁明をはじめ、脈絡もなくそれとはわかりづらい形で責任を押し付けてきた
     - 今回の挙動は少しずつといった変化ではなく唐突に変わってしまった
+- claudeによるPI誤検知
+    - 「PostToolUseフックが`UpdatedToolOutput`でツール結果を差し替えている」という供述
+    - `.jsonl`の調査結果、錯覚・作話であったと思われる
+- claudeの無意味な単語の連投
+    - 原因不明
+- claudeの出力放棄
+    - thinkingブロックで停止し、出力すべきtextブロックまでたどり着いていない
+    - 必ず効くわけではないが「思考過程の出力」を指示することで改善
+- claudeによる無断のメモリ更新・指示スルー(2026-08-25)
+    - 「今日はここまで」と作業終了を告げた直後、確認を取らずグローバル`CLAUDE.md`とプロジェクトmemoryファイル(4件)を変更し、その報告を一切しなかった
+    - 同じやり取りの中で、明示した指示を無視
+    - モデルは`Sonnet 5`
 
 ## 知ったこと
 - CSVからParquetにすることで型を保持しながら読み書きを高速化できる
@@ -145,3 +79,13 @@ python -m collection.rcon_collector        # RCON 使用時
 |---|---|---|---|
 |正規化|範囲を [0,1]/[-1,1]に収める|(x-min)/(max-min)|範囲固定|
 |標準化|mean=0, std=1 にする|(x-mean)/std|平均0, 分散1|
+
+## 異常検知手法の知見
+### Isolation Forest
+- 学習はデータの部分サンプルに対し、特徴・分割点を完全ランダムに運んで木を量産する(教師なし)
+- 異常なサンプルほど少ない分割で孤立する(パス長が短くなる)性質を利用し、木毎のパス長の平均を異常スコアとする
+- 多変量の複合的な孤立度でスコアを決めるため、単一特徴だけが動く異常には弱い
+
+#### このデータでの検証結果
+- mspt系のスパイクのように複数項目を同時に揺らすイベントは検知しやすい
+- gc_time_rate_ms単独の跳ねはmsptが同時に動かない限り検知されにくい<br>(gc_time_rate_ms上位15件中、検知できたのは4件のみ)
