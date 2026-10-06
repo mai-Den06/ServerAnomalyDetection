@@ -7,4 +7,4 @@ pyarrow
 matplotlib
 ipykernel
 scikit-learn
-
+torch
